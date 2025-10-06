@@ -6,6 +6,7 @@ import {
   updateGoldPrice,
   deleteGoldPrice,
   predictGoldPrice,
+  getRealtimeGoldPrice,
 } from "../controllers/goldPriceController.js"
 
 const router = Router()
@@ -19,5 +20,7 @@ router.put("/:id", updateGoldPrice)
 router.delete("/:id", deleteGoldPrice)
 // Add prediction route (protected)
 router.get("/predict", predictGoldPrice)
+// Add realtime route
+router.get("/realtime", getRealtimeGoldPrice)
 
 export default router

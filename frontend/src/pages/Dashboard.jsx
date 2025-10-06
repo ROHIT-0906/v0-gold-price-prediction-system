@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import api from "../api/axios"
 import Navbar from "../components/Navbar"
+import PriceChart from "../components/PriceChart"
 
 export default function Dashboard() {
   const [items, setItems] = useState([])
@@ -13,6 +14,10 @@ export default function Dashboard() {
   const [daysAhead, setDaysAhead] = useState(7)
   const [prediction, setPrediction] = useState(null)
   const [predicting, setPredicting] = useState(false)
+  const [realtime, setRealtime] = useState(null)
+  const [realtimeLoading, setRealtimeLoading] = useState(false)
+  const [realtimeError, setRealtimeError] = useState(null)
+  const [useRealtimeBaseline, setUseRealtimeBaseline] = useState(true)
 
   const fetchData = async () => {
     setLoading(true)
@@ -27,8 +32,27 @@ export default function Dashboard() {
     }
   }
 
+  const fetchRealtime = async () => {
+    setRealtimeLoading(true)
+    setRealtimeError(null)
+    try {
+      const res = await api.get("/gold-prices/realtime")
+      setRealtime(res.data)
+    } catch (err) {
+      setRealtimeError(err?.response?.data?.message || "Failed to fetch realtime price")
+    } finally {
+      setRealtimeLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchData()
+  }, [])
+
+  useEffect(() => {
+    fetchRealtime()
+    const id = setInterval(fetchRealtime, 60_000)
+    return () => clearInterval(id)
   }, [])
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
@@ -67,7 +91,7 @@ export default function Dashboard() {
     setPrediction(null)
     try {
       const res = await api.get("/gold-prices/predict", {
-        params: { days: Number(daysAhead) || 7 },
+        params: { days: Number(daysAhead) || 7, useRealtime: useRealtimeBaseline ? 1 : 0 },
       })
       setPrediction(res.data)
     } catch (err) {
@@ -76,6 +100,42 @@ export default function Dashboard() {
       setPredicting(false)
     }
   }
+
+  // Build chart data
+  const historic = [...items]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map((d) => ({
+      date: new Date(d.date),
+      price: Number(d.price),
+    }))
+
+  const baseFromRealtime =
+    prediction?.realtimeUsed?.price != null && prediction?.realtimeUsed?.fetchedAt
+      ? {
+          date: new Date(prediction.realtimeUsed.fetchedAt),
+          price: Number(prediction.realtimeUsed.price),
+        }
+      : null
+
+  const baseFromHistoric =
+    historic.length > 0
+      ? {
+          date: historic[historic.length - 1].date,
+          price: historic[historic.length - 1].price,
+        }
+      : null
+
+  const predictedLine =
+    prediction && (baseFromRealtime || baseFromHistoric)
+      ? [
+          {
+            date: (baseFromRealtime || baseFromHistoric).date,
+            price: (baseFromRealtime || baseFromHistoric).price,
+            predicted: true,
+          },
+          { date: new Date(prediction.predictedDate), price: Number(prediction.predictedPrice), predicted: true },
+        ]
+      : null
 
   return (
     <div className="min-h-screen">
@@ -131,7 +191,7 @@ export default function Dashboard() {
 
         <section className="mb-6 bg-white border rounded-lg p-4">
           <h3 className="font-medium mb-3">Predict Future Price</h3>
-          <form onSubmit={doPredict} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          <form onSubmit={doPredict} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
             <div>
               <label className="block text-sm mb-1" htmlFor="daysAhead">
                 Days Ahead
@@ -148,7 +208,26 @@ export default function Dashboard() {
                 required
               />
             </div>
-            <div>
+
+            {/* Toggle to use realtime baseline */}
+            <div className="flex items-center gap-2 md:col-span-3">
+              <input
+                id="useRealtimeBaseline"
+                type="checkbox"
+                checked={useRealtimeBaseline}
+                onChange={(e) => setUseRealtimeBaseline(e.target.checked)}
+              />
+              <label htmlFor="useRealtimeBaseline" className="text-sm">
+                Use realtime price as baseline
+              </label>
+              {realtime?.price != null && (
+                <span className="text-xs text-gray-600">
+                  Realtime: {Number(realtime.price).toFixed(2)} @ {new Date(realtime.fetchedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
               <button
                 type="submit"
                 disabled={predicting}
@@ -169,11 +248,46 @@ export default function Dashboard() {
                 <span className="font-medium">{new Date(prediction.predictedDate).toLocaleDateString()}</span>
               </p>
               <p className="text-sm">
-                Predicted Price: <span className="font-medium">{prediction.predictedPrice?.toFixed?.(2)}</span>
+                Predicted Price: <span className="font-medium">{Number(prediction.predictedPrice).toFixed(2)}</span>
               </p>
               {typeof prediction.r2 === "number" && (
                 <p className="text-xs text-gray-600 mt-1">R²: {prediction.r2.toFixed(3)}</p>
               )}
+            </div>
+          )}
+        </section>
+
+        <section className="mb-6 bg-white border rounded-lg p-4">
+          <h3 className="font-medium mb-3">Realtime Price</h3>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={fetchRealtime}
+              disabled={realtimeLoading}
+              className="rounded-md bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {realtimeLoading ? "Fetching..." : "Fetch Realtime Price"}
+            </button>
+            {realtimeError && <p className="text-red-600 text-sm">{realtimeError}</p>}
+          </div>
+          {realtime && (
+            <div className="mt-3 rounded border bg-gray-50 p-3">
+              <p className="text-sm">
+                Price Now: <span className="font-semibold">{Number(realtime.price).toFixed(2)}</span>
+              </p>
+              <p className="text-xs text-gray-600">
+                Fetched: {new Date(realtime.fetchedAt).toLocaleString()} | Source: {realtime.source}
+              </p>
+            </div>
+          )}
+        </section>
+
+        <section className="mb-6 bg-white border rounded-lg p-4">
+          <h3 className="font-medium mb-3">Price Chart</h3>
+          {historic.length === 0 ? (
+            <p className="text-sm text-gray-600">Add some records to see the chart.</p>
+          ) : (
+            <div className="w-full">
+              <PriceChart data={historic} predictedLine={predictedLine} />
             </div>
           )}
         </section>
