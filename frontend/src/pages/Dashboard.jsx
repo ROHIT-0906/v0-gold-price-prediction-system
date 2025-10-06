@@ -10,6 +10,9 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [form, setForm] = useState({ date: "", price: "" })
   const [submitting, setSubmitting] = useState(false)
+  const [daysAhead, setDaysAhead] = useState(7)
+  const [prediction, setPrediction] = useState(null)
+  const [predicting, setPredicting] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -54,6 +57,23 @@ export default function Dashboard() {
       setItems((prev) => prev.filter((it) => it._id !== id))
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to delete")
+    }
+  }
+
+  const doPredict = async (e) => {
+    e?.preventDefault?.()
+    setPredicting(true)
+    setError(null)
+    setPrediction(null)
+    try {
+      const res = await api.get("/gold-prices/predict", {
+        params: { days: Number(daysAhead) || 7 },
+      })
+      setPrediction(res.data)
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to predict")
+    } finally {
+      setPredicting(false)
     }
   }
 
@@ -107,6 +127,55 @@ export default function Dashboard() {
               </button>
             </div>
           </form>
+        </section>
+
+        <section className="mb-6 bg-white border rounded-lg p-4">
+          <h3 className="font-medium mb-3">Predict Future Price</h3>
+          <form onSubmit={doPredict} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div>
+              <label className="block text-sm mb-1" htmlFor="daysAhead">
+                Days Ahead
+              </label>
+              <input
+                id="daysAhead"
+                name="daysAhead"
+                type="number"
+                min="1"
+                max="365"
+                value={daysAhead}
+                onChange={(e) => setDaysAhead(e.target.value)}
+                className="w-full border rounded-md px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                disabled={predicting}
+                className="w-full rounded-md bg-emerald-600 text-white py-2 hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {predicting ? "Predicting..." : "Predict"}
+              </button>
+            </div>
+          </form>
+
+          {prediction && (
+            <div className="mt-4 rounded border bg-gray-50 p-3">
+              <p className="text-sm">
+                Method: <span className="font-medium">{prediction.method}</span>
+              </p>
+              <p className="text-sm">
+                Predicted Date:{" "}
+                <span className="font-medium">{new Date(prediction.predictedDate).toLocaleDateString()}</span>
+              </p>
+              <p className="text-sm">
+                Predicted Price: <span className="font-medium">{prediction.predictedPrice?.toFixed?.(2)}</span>
+              </p>
+              {typeof prediction.r2 === "number" && (
+                <p className="text-xs text-gray-600 mt-1">R²: {prediction.r2.toFixed(3)}</p>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="bg-white border rounded-lg p-4">

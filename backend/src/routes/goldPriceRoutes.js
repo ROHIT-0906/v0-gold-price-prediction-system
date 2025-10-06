@@ -5,6 +5,7 @@ import {
   getAllGoldPrices,
   updateGoldPrice,
   deleteGoldPrice,
+  predictGoldPrice,
 } from "../controllers/goldPriceController.js"
 
 const router = Router()
@@ -16,5 +17,7 @@ router.get("/", getAllGoldPrices)
 router.post("/", createGoldPrice)
 router.put("/:id", updateGoldPrice)
 router.delete("/:id", deleteGoldPrice)
+// Add prediction route (protected)
+router.get("/predict", predictGoldPrice)
 
 export default router
