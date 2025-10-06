@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* App-specific styles */
+:root {
+  --color-primary: #0ea5e9; /* sky-500 */
+  --color-accent: #f59e0b; /* amber-500 */
+}

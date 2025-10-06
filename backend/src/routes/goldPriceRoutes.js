@@ -1,0 +1,20 @@
+import { Router } from "express"
+import { authRequired } from "../middleware/auth.js"
+import {
+  createGoldPrice,
+  getAllGoldPrices,
+  updateGoldPrice,
+  deleteGoldPrice,
+} from "../controllers/goldPriceController.js"
+
+const router = Router()
+
+// Protect all routes
+router.use(authRequired)
+
+router.get("/", getAllGoldPrices)
+router.post("/", createGoldPrice)
+router.put("/:id", updateGoldPrice)
+router.delete("/:id", deleteGoldPrice)
+
+export default router
